@@ -18863,7 +18863,7 @@ async function runOnceCore(o) {
     // TYPED POSTCONDITIONS. The contract comes from the run caller/Commander, never from model output. Every
     // artifact predicate is evaluated through the workspace jail after the loop settles, and only an artifact
     // actually touched by this run is eligible. A missing/invalid/unprovable contract fails closed.
-    finalCompletionEvidence = execution.completionEvidence();
+    let finalCompletionEvidence = execution.completionEvidence();
     try {
       finalCompletionEvidence = await execution.assessCompletion({
         contract: o.postconditions,
