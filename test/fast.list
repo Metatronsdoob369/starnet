@@ -70,6 +70,7 @@ test/readbody.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
 test/runroute.test.js
+test/route-dispatch.test.js
 test/checkpoint.test.js
 test/checkpoint-default-on.test.js
 test/module-scope-shadowing.test.js
