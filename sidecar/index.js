@@ -9998,25 +9998,8 @@ const ROUTES = [
   { m: 'GET', qrx: /^\/shared\//, h: serveShared }
 ];
 
-function dispatchRoute(req, res) {
-  const url = req.url || '';
-  const bare = url.split('?')[0];
-  for (let i = 0; i < ROUTES.length; i++) {
-    const r = ROUTES[i];
-    if (Array.isArray(r.m) ? r.m.indexOf(req.method) < 0 : r.m !== req.method) continue;
-    let gm = null;
-    if (r.exact !== undefined) { if (url !== r.exact) continue; }
-    else if (r.qsplit !== undefined) { if (bare !== r.qsplit) continue; }
-    else if (r.prefix !== undefined) { if (!routePrefixMatches(url, r.prefix)) continue; }
-    else if (r.qprefix !== undefined) { if (!routePrefixMatches(bare, r.qprefix)) continue; }
-    else if (r.rx) { gm = url.match(r.rx); if (!gm) continue; }
-    else if (r.qrx) { if (!r.qrx.test(bare)) continue; }
-    else continue;   // malformed entry: never match (fail closed to the static fallthrough)
-    const out = r.h(req, res, gm);
-    return r.errorPolicy ? out.catch((e) => r.errorPolicy(res, e)) : out;
-  }
-  return serveStatic(req, res);
-}
+const { makeDispatcher } = require('./http/route-dispatch.js');
+const dispatchRoute = makeDispatcher(ROUTES, serveStatic);
 
 async function handleUpdatePrepare(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -10097,14 +10080,7 @@ async function handleWorkspaceStartFresh(req, res) {
   }
 }
 
-// Prefix routes are route families, not arbitrary string aliases. A route whose declared prefix already
-// ends in '/' owns every child below it; otherwise the next byte must be a real URL boundary.
-function routePrefixMatches(url, prefix) {
-  if (url.indexOf(prefix) !== 0) return false;
-  if (prefix.charAt(prefix.length - 1) === '/') return true;
-  const next = url.charAt(prefix.length);
-  return next === '' || next === '?' || next === '/';
-}
+
 server.on('error', (e) => {
   if (e && e.code === 'EADDRINUSE') console.error('✗ Port ' + PORT + ' is already in use (another sidecar already running?). Stop it, or set STARNET_PORT=<n> and retry.');
   else if (e && e.code === 'EACCES') console.error('✗ Port ' + PORT + ' needs elevated privileges — pick a port >= 1024 via STARNET_PORT.');
