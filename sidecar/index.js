@@ -1,4 +1,4 @@
-    botUsername: () => String((rec && rec.username) || ''),/* sidecar/index.js — the Node host. The ONLY module with ambient I/O (http / fs / fetch /
+/* sidecar/index.js — the Node host. The ONLY module with ambient I/O (http / fs / fetch /
    process.env). It (1) serves the static frontend/ and (2) exposes POST /api/run, which
    assembles the EXISTING proven seams — registry + web/fs/notebook tools + capability gate +
    cost engine + the real OpenRouter provider — runs the unchanged agentic loop, and streams the
@@ -18863,7 +18863,7 @@ async function runOnceCore(o) {
     // TYPED POSTCONDITIONS. The contract comes from the run caller/Commander, never from model output. Every
     // artifact predicate is evaluated through the workspace jail after the loop settles, and only an artifact
     // actually touched by this run is eligible. A missing/invalid/unprovable contract fails closed.
-    finalCompletionEvidence = execution.completionEvidence();
+    let finalCompletionEvidence = execution.completionEvidence();
     try {
       finalCompletionEvidence = await execution.assessCompletion({
         contract: o.postconditions,
