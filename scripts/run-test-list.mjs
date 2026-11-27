@@ -44,11 +44,16 @@ export function runList(options) {
     const profile = mkdtempSync(join(tmpdir(), 'starnet-gate-profile-'));
     const hermetic = { APPDATA: profile, LOCALAPPDATA: profile, XDG_DATA_HOME: profile };
     if (process.platform !== 'win32') hermetic.HOME = profile;
-    const result = spawnSync(process.execPath, [step], {
-      stdio: 'inherit',
-      cwd: ROOT,
-      env: Object.assign({}, process.env, hermetic)
-    });
+    const env = Object.assign({}, process.env, hermetic);
+    // HEADLESS GATE (2026-10-02): the hermetic HOME above also hides the X cookie at
+    // ~/.Xauthority, and ANGLE selects its X/Wayland backend whenever DISPLAY is set — so on any
+    // box with a desktop session (a Linux dev machine, or a cloud VM with a VNC desktop) Chrome's
+    // GPU process died in xcb_connect(), every WebGL step reported "no webgl" and fell back to the
+    // CPU warp, and the WebGL e2e steps failed here while passing when invoked directly. A
+    // headless gate must not depend on a desktop session at all, so drop those handles outright
+    // rather than leaking the real HOME back in to reach the cookie.
+    for (const key of ['DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY']) delete env[key];
+    const result = spawnSync(process.execPath, [step], { stdio: 'inherit', cwd: ROOT, env });
     try { rmSync(profile, { recursive: true, force: true }); } catch (_) {}
     if (result.status !== 0) {
       console.error(label + ': FAILED at step ' + (index + 1) + '/' + steps.length + ': node ' + step +

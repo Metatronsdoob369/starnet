@@ -9,21 +9,63 @@
 //
 // Zero dependencies: Node 22 has global fetch + global WebSocket.
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const CHROME_CANDIDATES = [
-  process.env.SKYNET_CHROME,
-  'C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe',
-  'C:/Users/andro/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+// Chrome discovery mirrors the sidecar's resolver (sidecar/tools/builtin/browser.js): an env
+// override wins, then Playwright's cache, then a real install. This list must stay
+// cross-platform and free of per-developer paths — it was once pinned to one Windows profile and
+// one Playwright build number, which made every CDP test a hard failure on Linux and macOS even
+// with Chrome installed. Playwright's cache is probed by directory scan rather than a pinned
+// version so a browser upgrade cannot silently drop the harness back to "no Chrome found".
+const PLAYWRIGHT_ROOTS = [
+  process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'ms-playwright'),
+  join(homedir(), '.cache', 'ms-playwright'),
+  join(homedir(), 'Library', 'Caches', 'ms-playwright'),
 ].filter(Boolean);
 
+function playwrightChromes() {
+  const out = [];
+  for (const root of PLAYWRIGHT_ROOTS) {
+    let dirs = [];
+    try { dirs = readdirSync(root); } catch { continue; }
+    for (const dir of dirs.sort().reverse()) {
+      if (/^chromium_headless_shell-\d+$/.test(dir)) out.push(
+        join(root, dir, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe'),
+        join(root, dir, 'chrome-headless-shell-linux', 'headless_shell'));
+      else if (/^chromium-\d+$/.test(dir)) out.push(
+        join(root, dir, 'chrome-win64', 'chrome.exe'),
+        join(root, dir, 'chrome-linux', 'chrome'),
+        join(root, dir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'));
+    }
+  }
+  return out;
+}
+
+function chromeCandidates() {
+  return [
+    process.env.STARNET_CHROME,
+    process.env.SKYNET_CHROME,
+    ...playwrightChromes(),
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ].filter(Boolean);
+}
+
 export function findChrome() {
-  for (const c of CHROME_CANDIDATES) if (existsSync(c)) return c;
-  throw new Error('No Chrome/Chromium binary found. Set SKYNET_CHROME.');
+  for (const c of chromeCandidates()) if (existsSync(c)) return c;
+  throw new Error('No Chrome/Chromium binary found. Set STARNET_CHROME (or SKYNET_CHROME).');
 }
 
 // Launch a headless Chrome with the CDP endpoint open. Returns the child process.
